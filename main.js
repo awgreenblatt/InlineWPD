@@ -33,6 +33,7 @@ define(function (require, exports, module) {
         EditorManager   = brackets.getModule("editor/EditorManager"),
         ExtensionUtils  = brackets.getModule("utils/ExtensionUtils"),
         Menus           = brackets.getModule("command/Menus"),
+        CSSUtils        = brackets.getModule("language/CSSUtils"),
         NativeApp       = brackets.getModule("utils/NativeApp");
     
     
@@ -127,18 +128,15 @@ define(function (require, exports, module) {
             return;
         }
         
-        // Always use the selection start for determining the CSS property name. The pos
-        // parameter is usually the selection end.        
-        var cssPropName = _getCSSPropName(editor, editor.getSelection().start);
-        if (!cssPropName) {
-            return null;
+        var cssInfo = CSSUtils.getInfoAtPos(editor, editor.getSelection().start);
+        if (cssInfo && cssInfo.name) {
+            var cssPropName = cssInfo.name;
+            _getCSSPropDefn(cssPropName).done(function (cssPropDefn) {
+                var wpdViewer = new InlineWPDViewer(cssPropName, cssPropDefn);
+                wpdViewer.load(editor);
+                editor.addInlineWidget(editor.getCursorPos(), wpdViewer);
+            });
         }
-        
-        _getCSSPropDefn(cssPropName).done(function (cssPropDefn) {
-            var wpdViewer = new InlineWPDViewer(cssPropName, cssPropDefn);
-            wpdViewer.load(editor);
-            editor.addInlineWidget(editor.getCursorPos(), wpdViewer);
-        });
     }
     
     ExtensionUtils.loadStyleSheet(module, "style.css");
