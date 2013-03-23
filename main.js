@@ -31,6 +31,7 @@ define(function (require, exports, module) {
 
     var CommandManager  = brackets.getModule("command/CommandManager"),
         EditorManager   = brackets.getModule("editor/EditorManager"),
+        ExtensionUtils  = brackets.getModule("utils/ExtensionUtils"),
         Menus           = brackets.getModule("command/Menus"),
         NativeApp       = brackets.getModule("utils/NativeApp");
     
@@ -82,15 +83,27 @@ define(function (require, exports, module) {
             var fullText = data.parse.text['*'];
             var $fullText = $("<div>" + fullText + "</div>");
             var $defn = $fullText.find('#Summary').parent().nextUntil('h2');
-            $defn = $('<div/>').append($defn).append("<p><button>More Info...</button></p>");
+            $defn = $('<div class="wpd-css"><h1>' + cssPropName + '</h1></div>').append($defn);
+            $defn = $defn.append("<p class='more-info'><a href='#'>More Info...</a></p>");
             
-            $defn.find('button').click(function (event) {
+            $defn.find('a').click(function (event) {
                 event.stopPropagation();
                 NativeApp.openURLInDefaultBrowser(navUrl);
             });
             result.resolve($defn);
         });
         return result.promise();
+    }
+    
+    function _addFontDeclaration(url) {
+            
+        var attributes = {
+                type: "text/css",
+                rel:  "stylesheet",
+                href: url
+            };
+        var $link = $("<link/>").attr(attributes);
+        $link.appendTo("head");
     }
     
     /**
@@ -127,6 +140,11 @@ define(function (require, exports, module) {
             editor.addInlineWidget(editor.getCursorPos(), wpdViewer);
         });
     }
+    
+    ExtensionUtils.loadStyleSheet(module, "style.css");
+    
+    _addFontDeclaration('http://fonts.googleapis.com/css?family=Gudea');
+    _addFontDeclaration('http://fonts.googleapis.com/css?family=Bitter:700');
     
     var SHOW_CSS_DOCS_CMD = "inlinewpd.showCSSDocs";
     CommandManager.register("Show CSS Docs", SHOW_CSS_DOCS_CMD, handleShowCSSDocs);

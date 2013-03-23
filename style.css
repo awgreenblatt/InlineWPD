@@ -1,0 +1,22 @@
+.wpd-css h1 {
+    color: #58595B;
+    font-weight: bold;
+    font-size: 28px;
+    line-height: 40px;
+    border-bottom: 1px solid #D2D3D4;
+    padding-top: 14px;
+    margin: 14px 20px 14px 20px;
+    font-family: Bitter, Georgia, serif;
+}
+
+.wpd-css p {
+    line-height: 24px;
+    margin: 0px 20px 0px 20px;
+    color: #3C3C3C;
+    font-family: Gudea, Arial, sans-serif;
+    font-size: 14px;    
+}
+
+.wpd-css p.more-info {
+    margin-top: 10px;
+}
