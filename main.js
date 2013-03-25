@@ -85,11 +85,20 @@ define(function (require, exports, module) {
             var $fullText = $("<div>" + fullText + "</div>");
             var $defn = $fullText.find('#Summary').parent().nextUntil('h2');
             $defn = $('<div class="wpd-css"><h1>' + cssPropName + '</h1></div>').append($defn);
-            $defn = $defn.append("<p class='more-info'><a href='#'>More Info...</a></p>");
+            $defn = $defn.append("<p class='more-info'><a href='" + navUrl + "'>More Info...</a></p>");
+            
+            $.each($defn.find('a'), function (index, value) {
+                var href = value.getAttribute('href');
+                if (href.charAt(0) === '/') {
+                    href = 'http://docs.webplatform.org' + href;
+                }
+                value.setAttribute('data-href', href);
+                value.setAttribute('href', '#');
+            });
             
             $defn.find('a').click(function (event) {
                 event.stopPropagation();
-                NativeApp.openURLInDefaultBrowser(navUrl);
+                NativeApp.openURLInDefaultBrowser(this.getAttribute('data-href'));
             });
             result.resolve($defn);
         });
@@ -145,8 +154,37 @@ define(function (require, exports, module) {
     _addFontDeclaration('http://fonts.googleapis.com/css?family=Bitter:700');
     
     var SHOW_CSS_DOCS_CMD = "inlinewpd.showCSSDocs";
-    CommandManager.register("Show CSS Docs", SHOW_CSS_DOCS_CMD, handleShowCSSDocs);
+    var showCSSDocsCmd = CommandManager.register("Show CSS Docs", SHOW_CSS_DOCS_CMD, handleShowCSSDocs);
+    showCSSDocsCmd.setEnabled(true);
     
     var menu = Menus.getMenu(Menus.AppMenuBar.VIEW_MENU);
     menu.addMenuItem(SHOW_CSS_DOCS_CMD, KeyboardPrefs.showCSSDocs);
+    
+    var editor_cmenu = Menus.getContextMenu(Menus.ContextMenuIds.EDITOR_MENU);
+    
+    // Add the Commands as MenuItems of the Editor context menu
+    if (editor_cmenu) {
+        editor_cmenu.addMenuDivider();
+        editor_cmenu.addMenuItem(SHOW_CSS_DOCS_CMD);
+    }
+
+//    var updateEnabled = function () {
+//        return 
+//        var cmdEnabled = false;
+//        var editor = EditorManager.getFocusedEditor();
+//        if (editor) {
+//            var sel = editor.getSelection(false);
+//            if (sel.start.line === sel.end.line) {
+//                if (editor.getModeForSelection() === 'css') {
+//                    var cssInfo = CSSUtils.getInfoAtPos(editor, editor.getSelection().start);
+//                    if (cssInfo && cssInfo.name) {
+//                        cmdEnabled = true;
+//                    }
+//                }
+//            }
+//        }
+//        showCSSDocsCmd.setEnabled(cmdEnabled);
+//    };
+//    
+//    $(editor_cmenu).on("beforeContextMenuOpen", updateEnabled);
 });
