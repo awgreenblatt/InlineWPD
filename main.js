@@ -125,7 +125,8 @@ define(function (require, exports, module) {
         var query = "Value_for_property::css/properties/" + cssPropName;
         var pageTitle = "css/properties/" + cssPropName;
         var params = "%7C?Property_value%7C?Property_value_description&format=json";
-        var url = "http://docs.webplatform.org/w/api.php?action=ask&query=%5B%5B" + query + "%5D%5D" + params;
+        var url = "http://docs.webplatform.org/w/api.php?action=ask&query=%5B%5B" + query +
+            "%5D%5D" + params;
         $.get(url, function (data) {
             var results = data.query.results;
             var val;
@@ -261,7 +262,8 @@ define(function (require, exports, module) {
     _addFontDeclaration('http://fonts.googleapis.com/css?family=Bitter:700');
     
     var SHOW_CSS_DOCS_CMD = "inlinewpd.showCSSDocs";
-    var showCSSDocsCmd = CommandManager.register("Show CSS Docs", SHOW_CSS_DOCS_CMD, handleShowCSSDocs);
+    var showCSSDocsCmd = CommandManager.register("Show CSS Docs", SHOW_CSS_DOCS_CMD,
+                                                 handleShowCSSDocs);
     showCSSDocsCmd.setEnabled(true);
     
     var menu = Menus.getMenu(Menus.AppMenuBar.VIEW_MENU);
