@@ -68,17 +68,14 @@ define(function (require, exports, module) {
         return token.string;
     }
     
-    function _doWPAskAction(query, params) {
-        var result = new $.Deferred();
-        
-        var url = "http://docs.webplatform.org/w/api.php?action=ask&query=%5B%5B" + query + "%5D%5D" + params;
-        $.get(url, function (data) {
-            result.resolve(data.query.results);
-        });
-        
-        return result.promise();
-    }
-    
+    /**
+     * Parse some mediawiki markup to get its HTML equivalent.
+     * We pass in the optional pageTitle in case the markup uses special variables like {{PAGENAME}}
+     * 
+     * @param pageTitle Title of the page the markup came from
+     * @param markup Markup text we want to convert to HTML
+     * @return Deferred HTML converted from markup
+     */
     function _parseMarkup2HTML(pageTitle, markup) {
         var result = new $.Deferred();
         var encodedMarkup = window.encodeURIComponent(markup);
@@ -91,12 +88,20 @@ define(function (require, exports, module) {
         return result.promise();
     }
     
+    /**
+     * Query docs.webplatform.org for the documentation on a CSS property and return its summary.
+     *
+     * @param cssPropName Name of the CSS property
+     * @return Deferred {String} Summary description of the CSS property
+     */
     function _getCSSPropSummary(cssPropName) {
         var result = new $.Deferred();
 
         var query = "css/properties/" + cssPropName;
         var params = "%7C?Summary&format=json";
-        _doWPAskAction(query, params).done(function (results) {
+        var url = "http://docs.webplatform.org/w/api.php?action=ask&query=%5B%5B" + query + "%5D%5D" + params;
+        $.get(url, function (data) {
+            var results = data.query.results;
             if (results[query]) {
                 var summary = results[query].printouts.Summary[0];
                 _parseMarkup2HTML(query, summary).done(function (parsedSummary) {
@@ -108,13 +113,21 @@ define(function (require, exports, module) {
         return result.promise();
     }
     
+    /**
+     * Get the name and description for each possible value for a given CSS property
+     *
+     * @param cssPropname {String} Name of the CSS property
+     * @return Deferred Array of value name/description pairs
+     */
     function _getCSSPropValuesAndDescriptions(cssPropName) {
         var result = new $.Deferred();
         
         var query = "Value_for_property::css/properties/" + cssPropName;
         var pageTitle = "css/properties/" + cssPropName;
         var params = "%7C?Property_value%7C?Property_value_description&format=json";
-        _doWPAskAction(query, params).done(function (results) {
+        var url = "http://docs.webplatform.org/w/api.php?action=ask&query=%5B%5B" + query + "%5D%5D" + params;
+        $.get(url, function (data) {
+            var results = data.query.results;
             var val;
             var deferreds = [];
             for (val in results) {
@@ -122,7 +135,7 @@ define(function (require, exports, module) {
                     var propValObj = results[val].printouts;
                     var propVal = propValObj["Property value"];
                     var propValDesc = propValObj["Property value description"];
-                    
+
                     if (propVal.length && propValDesc.length) {
                         deferreds.push(_parseMarkup2HTML(pageTitle, propVal[0]));
                         deferreds.push(_parseMarkup2HTML(pageTitle, propValDesc[0]));
@@ -130,6 +143,7 @@ define(function (require, exports, module) {
                 }
             }
 
+            /* Wait for all the prop value names & desciptions to arrive before proceeding */
             $.when.apply(null, deferreds).then(function () {
                 var propVals = [];
                 var i = 0;
@@ -141,8 +155,9 @@ define(function (require, exports, module) {
                 }
                 result.resolve(propVals);
             });
+
         });
-        
+                
         return result.promise();
     }
     
@@ -155,14 +170,14 @@ define(function (require, exports, module) {
     function _getCSSPropDetails(cssPropName) {
         var result = new $.Deferred();
         
-        _getCSSPropSummary(cssPropName).done(function (summary) {
-            var navUrl = "http://docs.webplatform.org/wiki/css/properties/" + cssPropName;
-            var propDetails = "<div class='wpd-css'><h1>" + cssPropName + "</h1>" +
-                "<div class='css-prop-summary'><h2>Summary</h2>" +
-                "<p class='css-prop-summary'>" + summary + "</p>" +
-                "<div class='css-prop-values'><h2>Values</h2>";
-            
-            _getCSSPropValuesAndDescriptions(cssPropName).done(function (propVals) {
+        $.when(_getCSSPropSummary(cssPropName), _getCSSPropValuesAndDescriptions(cssPropName)).then(
+            function (summary, propVals) {
+                var navUrl = "http://docs.webplatform.org/wiki/css/properties/" + cssPropName;
+                var propDetails = "<div class='wpd-css'><h1>" + cssPropName + "</h1>" +
+                    "<div class='css-prop-summary'><h2>Summary</h2>" +
+                    "<p class='css-prop-summary'>" + summary + "</p>" +
+                    "<div class='css-prop-values'><h2>Values</h2>";
+                
                 var i;
                 for (i = 0; i < propVals.length; i++) {
                     var propVal = propVals[i];
@@ -173,6 +188,9 @@ define(function (require, exports, module) {
 
                 propDetails += "<p class='more-info'><a href='" + navUrl + "'>More Info...</a></p></div></div>";
                 
+                /*
+                 * We don't want anyone navigating and changing the view within Brackets itself.
+                 */
                 var $propDetails = $(propDetails);
                 $.each($propDetails.find('a'), function (index, value) {
                     var href = value.getAttribute('href');
@@ -189,8 +207,8 @@ define(function (require, exports, module) {
                     NativeApp.openURLInDefaultBrowser(this.getAttribute('data-href'));
                 });
                 result.resolve($propDetails);
-            });
-        });
+            }
+        );
         
         return result.promise();
     }
