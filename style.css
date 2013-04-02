@@ -9,7 +9,71 @@
     font-family: Bitter, Georgia, serif;
 }
 
-.wpd-css p {
+.wpd-css h2 {
+    color: #58595B;
+    display: inline;
+    font-family: Bitter, Georgia, serif;
+    font-size: 20px;
+    font-weight: normal;
+    height: auto;
+    width: auto;
+    margin: 14px 20px 14px 20px;
+}
+
+.css-prop-val2 {
+    border-bottom-color: #E2E3E4;
+    border-bottom-style: solid;
+    border-bottom-width: 1px;
+    color: #3C3C3C;
+    display: block;
+    font-family: Gudea, Arial, sans-serif;
+    font-size: 14px;  
+}
+
+div.css-prop-values {
+    margin-top: 14px;
+}
+
+div.css-prop-val {
+    margin: 0px 0px 0px 20px;
+}
+
+.css-prop-val code {
+    color: #3C3C3C;
+    display: inline;
+    font-family: Consolas, Monaco, 'Andale Mono', monospace;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.css-prop-val dl {
+    color: #3C3C3C;
+    display: block;
+    font-family: Gudea, Arial, sans-serif;
+    font-size: 14px;
+    margin: 14px 14px 0px 0px;
+}
+
+.css-prop-val dt > p {
+    color: #000000;
+    display: block;
+    font-family: Gudea, Arial, sans-serif;
+    font-size: 16px;
+    font-weight: bold;
+    padding-bottom: 7px;
+}
+
+.css-prop-val dd {
+    color: #3C3C3C;
+    display: block;
+    font-family: Gudea, Arial, sans-serif;
+    font-size: 14px;
+    margin-left: 22.4px;
+    margin-right: 0px;
+    padding-bottom: 0px;
+}
+
+.css-prop-summary p {
     line-height: 24px;
     margin: 0px 20px 0px 20px;
     color: #3C3C3C;

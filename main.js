@@ -68,45 +68,134 @@ define(function (require, exports, module) {
         return token.string;
     }
     
-    /**
-     * Lookup a CSS property definition on webplatform.org and return its definition
-     *
-     * @param cssPropName CSS Property Name
-     * @return {String} CSS Property definition
-     */
-    function _getCSSPropDefn(cssPropName) {
+    function _doWPAskAction(query, params) {
         var result = new $.Deferred();
         
-        var baseUrl = "http://docs.webplatform.org/w/api.php?action=parse&format=json&prop=text&section=Summary&page=css/properties/";
-        var url = baseUrl + cssPropName;
-        var navUrl = "http://docs.webplatform.org/wiki/css/properties/" + cssPropName;
+        var url = "http://docs.webplatform.org/w/api.php?action=ask&query=%5B%5B" + query + "%5D%5D" + params;
         $.get(url, function (data) {
-            var fullText = data.parse.text['*'];
-            var $fullText = $("<div>" + fullText + "</div>");
-            var $defn = $fullText.find('#Summary').parent().nextUntil('h2');
-            $defn = $('<div class="wpd-css"><h1>' + cssPropName + '</h1></div>').append($defn);
-            $defn = $defn.append("<p class='more-info'><a href='" + navUrl + "'>More Info...</a></p>");
-            
-            $.each($defn.find('a'), function (index, value) {
-                var href = value.getAttribute('href');
-                if (href.charAt(0) === '/') {
-                    href = 'http://docs.webplatform.org' + href;
-                }
-                value.setAttribute('data-href', href);
-                value.setAttribute('href', '#');
-            });
-            
-            $defn.find('a').click(function (event) {
-                event.stopPropagation();
-                NativeApp.openURLInDefaultBrowser(this.getAttribute('data-href'));
-            });
-            result.resolve($defn);
+            result.resolve(data.query.results);
         });
+        
+        return result.promise();
+    }
+    
+    function _parseMarkup2HTML(pageTitle, markup) {
+        var result = new $.Deferred();
+        var encodedMarkup = window.encodeURIComponent(markup);
+        var url = "http://docs.webplatform.org/w/api.php?action=parse&disablepp&prop=text&format=json&title=" +
+            pageTitle + "&text=" + encodedMarkup;
+        $.get(url, function (data) {
+            result.resolve(data.parse.text['*']);
+        });
+        
+        return result.promise();
+    }
+    
+    function _getCSSPropSummary(cssPropName) {
+        var result = new $.Deferred();
+
+        var query = "css/properties/" + cssPropName;
+        var params = "%7C?Summary&format=json";
+        _doWPAskAction(query, params).done(function (results) {
+            if (results[query]) {
+                var summary = results[query].printouts.Summary[0];
+                _parseMarkup2HTML(query, summary).done(function (parsedSummary) {
+                    result.resolve(parsedSummary);
+                });
+            }
+        });
+        
+        return result.promise();
+    }
+    
+    function _getCSSPropValuesAndDescriptions(cssPropName) {
+        var result = new $.Deferred();
+        
+        var query = "Value_for_property::css/properties/" + cssPropName;
+        var pageTitle = "css/properties/" + cssPropName;
+        var params = "%7C?Property_value%7C?Property_value_description&format=json";
+        _doWPAskAction(query, params).done(function (results) {
+            var val;
+            var deferreds = [];
+            for (val in results) {
+                if (results.hasOwnProperty(val)) {
+                    var propValObj = results[val].printouts;
+                    var propVal = propValObj["Property value"];
+                    var propValDesc = propValObj["Property value description"];
+                    
+                    if (propVal.length && propValDesc.length) {
+                        deferreds.push(_parseMarkup2HTML(pageTitle, propVal[0]));
+                        deferreds.push(_parseMarkup2HTML(pageTitle, propValDesc[0]));
+                    }
+                }
+            }
+
+            $.when.apply(null, deferreds).then(function () {
+                var propVals = [];
+                var i = 0;
+                while (i < arguments.length) {
+                    propVals.push({
+                        propValName: arguments[i++],
+                        propValDesc: arguments[i++]
+                    });
+                }
+                result.resolve(propVals);
+            });
+        });
+        
+        return result.promise();
+    }
+    
+    /**
+     * Lookup a CSS property definition on webplatform.org and return its definition
+     * At this point, we get the Summary and list of possible property values and their descriptions.
+     * @param cssPropName CSS Property Name
+     * @return {Object} Object containing the summary and list of possible property values and their descriptions
+     */
+    function _getCSSPropDetails(cssPropName) {
+        var result = new $.Deferred();
+        
+        _getCSSPropSummary(cssPropName).done(function (summary) {
+            var navUrl = "http://docs.webplatform.org/wiki/css/properties/" + cssPropName;
+            var propDetails = "<div class='wpd-css'><h1>" + cssPropName + "</h1>" +
+                "<div class='css-prop-summary'><h2>Summary</h2>" +
+                "<p class='css-prop-summary'>" + summary + "</p>" +
+                "<div class='css-prop-values'><h2>Values</h2>";
+            
+            _getCSSPropValuesAndDescriptions(cssPropName).done(function (propVals) {
+                var i;
+                for (i = 0; i < propVals.length; i++) {
+                    var propVal = propVals[i];
+                    propDetails += "<div class='css-prop-val'><dl><dt>" + propVal.propValName + "</dt>" +
+                        "<dd>" + propVal.propValDesc + "</dd>" +
+                        "</dl></div>";
+                }
+
+                propDetails += "<p class='more-info'><a href='" + navUrl + "'>More Info...</a></p></div></div>";
+                
+                var $propDetails = $(propDetails);
+                $.each($propDetails.find('a'), function (index, value) {
+                    var href = value.getAttribute('href');
+                    if (href.substr(0, 4) !== 'http') {
+                        href = 'http://docs.webplatform.org' + (href.charAt(0) !== '/' ? '/' : '') +
+                            href.replace(' ', '_');
+                    }
+                    value.setAttribute('data-href', href);
+                    value.setAttribute('href', '#');
+                });
+                
+                $propDetails.find('a').click(function (event) {
+                    event.stopPropagation();
+                    NativeApp.openURLInDefaultBrowser(this.getAttribute('data-href'));
+                });
+                result.resolve($propDetails);
+            });
+        });
+        
         return result.promise();
     }
     
     function _addFontDeclaration(url) {
-            
         var attributes = {
                 type: "text/css",
                 rel:  "stylesheet",
@@ -140,8 +229,8 @@ define(function (require, exports, module) {
         var cssInfo = CSSUtils.getInfoAtPos(editor, editor.getSelection().start);
         if (cssInfo && cssInfo.name) {
             var cssPropName = cssInfo.name;
-            _getCSSPropDefn(cssPropName).done(function (cssPropDefn) {
-                var wpdViewer = new InlineWPDViewer(cssPropName, cssPropDefn);
+            _getCSSPropDetails(cssPropName).done(function (cssPropDetails) {
+                var wpdViewer = new InlineWPDViewer(cssPropName, cssPropDetails);
                 wpdViewer.load(editor);
                 editor.addInlineWidget(editor.getCursorPos(), wpdViewer);
             });
@@ -167,24 +256,4 @@ define(function (require, exports, module) {
         editor_cmenu.addMenuDivider();
         editor_cmenu.addMenuItem(SHOW_CSS_DOCS_CMD);
     }
-
-//    var updateEnabled = function () {
-//        return 
-//        var cmdEnabled = false;
-//        var editor = EditorManager.getFocusedEditor();
-//        if (editor) {
-//            var sel = editor.getSelection(false);
-//            if (sel.start.line === sel.end.line) {
-//                if (editor.getModeForSelection() === 'css') {
-//                    var cssInfo = CSSUtils.getInfoAtPos(editor, editor.getSelection().start);
-//                    if (cssInfo && cssInfo.name) {
-//                        cmdEnabled = true;
-//                    }
-//                }
-//            }
-//        }
-//        showCSSDocsCmd.setEnabled(cmdEnabled);
-//    };
-//    
-//    $(editor_cmenu).on("beforeContextMenuOpen", updateEnabled);
 });
