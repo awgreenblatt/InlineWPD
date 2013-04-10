@@ -40,13 +40,12 @@ define(function (require, exports, module) {
         NativeApp       = brackets.getModule("utils/NativeApp");
     
     var CSSPropDocCache = {};
+    var CSSPropsServerURL = "http://ec2-184-73-148-225.compute-1.amazonaws.com/css.json";
     
     // Local modules
     var InlineWPDViewer = require("InlineWPDViewer");
     
     var KeyboardPrefs = JSON.parse(require("text!keyboard.json"));
-    
-    var CSSPropsServerURL = "http://ec2-184-73-148-225.compute-1.amazonaws.com/css.json";
     
     function _addFontDeclaration(url) {
         var attributes = {
@@ -68,8 +67,27 @@ define(function (require, exports, module) {
     }
     
     function _getRemoteCSSPropDetails() {
-        $.get(CSSPropDocCache, function (data) {
-            CSSPropDocCache = data;
+        $.get(CSSPropsServerURL, function (data) {
+            if (data.hasOwnProperty("HASH") && data.HASH !== CSSPropDocCache.HASH) {
+                CSSPropDocCache = data;
+            
+                NativeFileSystem.requestNativeFileSystem(brackets.app.getApplicationSupportDirectory(), function (fs) {
+                    fs.root.getDirectory("wpd_data", {create: true}, function (dirEntry) {
+                        dirEntry.getFile("cssPropsCache", {create: true}, function (fileEntry) {
+                            FileUtils.writeText(fileEntry, JSON.stringify(data)).done(function () {
+                            }).fail(function (err) {
+                                console.log("Error writing css property cache");
+                            });
+                        }, function (error) {
+                            console.log(error);
+                        });
+                    }, function (error) {
+                        console.log(error);
+                    });
+                }, function (error) {
+                    console.log(error);
+                });
+            }
         });
     }
 
