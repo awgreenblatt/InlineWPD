@@ -105,46 +105,6 @@ define(function (require, exports, module) {
         });
     }
     
-    function _cssPropDetails2HTML(cssPropName, cssPropDetails) {
-        var summary = cssPropDetails.SUMMARY;
-        var values = cssPropDetails.VALUES;
-        
-        var html = "<div class='wpd-css'><h1>" + cssPropName + "</h1>" +
-            "<div class='css-prop-summary'><h2>Summary</h2>" + summary + "</div>" +
-            "<div class='css-prop-values'><h2>Values</h2><dl>";
-        
-        var i;
-        for (i = 0; i < values.length; i++) {
-            var value = values[i];
-            html += "<dt>" + value.TITLE + "</dt>" +
-                "<dd>" + value.DESCRIPTION + "</dd>";
-        }
-
-        html += "</dl></div><p class='more-info'><a href='" + cssPropDetails.URL + "'>More Info...</a></p></div>";
-        
-        var $html = $(html);
-        
-        /*
-         * We don't want anyone navigating and changing the view within Brackets itself.
-         */
-        $.each($html.find('a'), function (index, value) {
-            var href = value.getAttribute('href');
-            if (href.substr(0, 4) !== 'http') {
-                href = 'http://docs.webplatform.org' + (href.charAt(0) !== '/' ? '/' : '') +
-                    href.replace(' ', '_');
-            }
-            value.setAttribute('data-href', href);
-            value.setAttribute('href', '#');
-        });
-        
-        $html.find('a').click(function (event) {
-            event.stopPropagation();
-            NativeApp.openURLInDefaultBrowser(this.getAttribute('data-href'));
-        });
-        
-        return $html;
-    }
-    
     /**
      * When the cursor is on a CSS property, look up the definition of the property on webplatform.org
      * and view the results in an InlineWPDViewer.
@@ -173,8 +133,7 @@ define(function (require, exports, module) {
                 // TODO: Objects should be keyed off the name w/o the css/properties/ prefix
                 var cssPropDetails = CSSPropDocCache.PROPERTIES["css/properties/" + cssPropName];
                 if (cssPropDetails) {
-                    var cssPropDetailsHTML = _cssPropDetails2HTML(cssPropName, cssPropDetails);
-                    var wpdViewer = new InlineWPDViewer(cssPropName, cssPropDetailsHTML);
+                    var wpdViewer = new InlineWPDViewer(cssPropName, cssPropDetails);
                     wpdViewer.load(editor);
                     editor.addInlineWidget(editor.getCursorPos(), wpdViewer);
                 }

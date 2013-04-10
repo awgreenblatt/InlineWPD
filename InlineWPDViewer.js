@@ -29,14 +29,15 @@ define(function (require, exports, module) {
     'use strict';
     
     // Load Brackets modules
-    var InlineWidget        = brackets.getModule("editor/InlineWidget").InlineWidget;
+    var InlineWidget    = brackets.getModule("editor/InlineWidget").InlineWidget,
+        NativeApp       = brackets.getModule("utils/NativeApp");
     
-    // Load tempalte
+    // Load template
     var inlineEditorTemplate = require("text!InlineWPDViewer.html");
     
-    function InlineWPDViewer(cssPropName, cssPropDefn) {
+    function InlineWPDViewer(cssPropName, cssPropDetails) {
         this.cssPropName = cssPropName;
-        this.cssPropDefn = cssPropDefn;
+        this.cssPropDetails = cssPropDetails;
         InlineWidget.call(this);
     }
     
@@ -53,16 +54,41 @@ define(function (require, exports, module) {
         
         this.$wrapperDiv = $(inlineEditorTemplate);
         
-        // TODO (jason-sanjose): Use handlebars.js and update template to
-        // use expressions instead e.g. {{filename}}
-        // Header
-        $(this.$wrapperDiv.find("span.css-prop-name")).text(this.cssPropName);
+        this.$wrapperDiv.find("div.css-prop-defn > h1").text(this.cssPropName);
+        this.$wrapperDiv.find("div.css-prop-summary > div").html(this.cssPropDetails.SUMMARY);
 
-        // Definition
-        $(this.$wrapperDiv.find("div.css-prop-defn")).html(this.cssPropDefn);
+        var values = this.cssPropDetails.VALUES;
+        var valuesHTML = "<dl>";
+        var i;
+        for (i = 0; i < values.length; i++) {
+            var value = values[i];
+            valuesHTML += "<dt>" + value.TITLE + "</dt>" +
+                "<dd>" + value.DESCRIPTION + "</dd>";
+        }
+        valuesHTML += "</dl>";
+        
+        this.$wrapperDiv.find("div.css-prop-values > div").html(valuesHTML);
+        this.$wrapperDiv.find(".more-info a").attr("href", this.cssPropDetails.URL);
         
         this.$htmlContent.append(this.$wrapperDiv);
         this.$htmlContent.click(this.close.bind(this));
+        
+        var $links = this.$wrapperDiv.find('a');
+        $.each($links, function (index, value) {
+            var href = value.getAttribute('href');
+            if (href.substr(0, 4) !== 'http') {
+                href = 'http://docs.webplatform.org' + (href.charAt(0) !== '/' ? '/' : '') +
+                    href.replace(' ', '_');
+            }
+            value.setAttribute('data-href', href);
+            value.setAttribute('href', '#');
+        });
+        
+        $links.click(function (event) {
+            event.stopPropagation();
+            NativeApp.openURLInDefaultBrowser(this.getAttribute('data-href'));
+        });
+        
     };
 
     InlineWPDViewer.prototype.onAdded = function () {

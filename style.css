@@ -1,33 +1,5 @@
-.wpd-css h1 {
-    color: #58595B;
-    font-weight: bold;
-    font-size: 28px;
-    line-height: 40px;
-    border-bottom: 1px solid #D2D3D4;
-    padding-top: 14px;
-    margin: 14px 20px 14px 20px;
-    font-family: Bitter, Georgia, serif;
-}
-
-.wpd-css h2 {
-    color: #58595B;
-    display: inline;
-    font-family: Bitter, Georgia, serif;
-    font-size: 20px;
-    font-weight: normal;
-    height: auto;
-    width: auto;
-    margin: 14px 20px 14px 20px;
-}
-
-.css-prop-val2 {
-    border-bottom-color: #E2E3E4;
-    border-bottom-style: solid;
-    border-bottom-width: 1px;
-    color: #3C3C3C;
-    display: block;
-    font-family: Gudea, Arial, sans-serif;
-    font-size: 14px;  
+.css-prop-defn {
+    margin-left: 20px;
 }
 
 div.css-prop-values {
@@ -54,7 +26,7 @@ div.css-prop-val {
     margin: 14px 14px 0px 0px;
 }
 
-.css-prop-val dt > p {
+.css-prop-values dt > p {
     color: #000000;
     display: block;
     font-family: Gudea, Arial, sans-serif;
@@ -63,7 +35,7 @@ div.css-prop-val {
     padding-bottom: 7px;
 }
 
-.css-prop-val dd {
+.css-prop-values dd {
     color: #3C3C3C;
     display: block;
     font-family: Gudea, Arial, sans-serif;
@@ -81,6 +53,6 @@ div.css-prop-val {
     font-size: 14px;    
 }
 
-.wpd-css p.more-info {
-    margin-top: 10px;
+p.more-info {
+    margin-top: 20px;
 }
