@@ -30,189 +30,23 @@ define(function (require, exports, module) {
     "use strict";
 
     var CommandManager  = brackets.getModule("command/CommandManager"),
+        Async           = brackets.getModule("utils/Async"),
+        NativeFileSystem = brackets.getModule("file/NativeFileSystem").NativeFileSystem,
+        FileUtils       = brackets.getModule("file/FileUtils"),
         EditorManager   = brackets.getModule("editor/EditorManager"),
         ExtensionUtils  = brackets.getModule("utils/ExtensionUtils"),
         Menus           = brackets.getModule("command/Menus"),
         CSSUtils        = brackets.getModule("language/CSSUtils"),
         NativeApp       = brackets.getModule("utils/NativeApp");
     
+    var CSSPropDocCache = {};
     
     // Local modules
     var InlineWPDViewer = require("InlineWPDViewer");
     
     var KeyboardPrefs = JSON.parse(require("text!keyboard.json"));
-
-    /**
-     * Return the token string that is at the specified position.
-     *
-     * @param hostEditor {!Editor} editor
-     * @param {!{line:Number, ch:Number}} pos
-     * @return {String} token string at the specified position
-     */
-    function _getCSSPropName(hostEditor, pos) {
-        var token = hostEditor._codeMirror.getTokenAt(pos);
-        
-        // If the pos is at the beginning of a name, token will be the 
-        // preceding whitespace or dot. In that case, try the next pos.
-        if (token.string.trim().length === 0 || token.string === ".") {
-            token = hostEditor._codeMirror.getTokenAt({line: pos.line, ch: pos.ch + 1});
-        }
-        
-        // Return valid function expressions only (function call or reference)
-        if (!((token.className === "variable") ||
-              (token.className === "variable-2") ||
-              (token.className === "property"))) {
-            return null;
-        }
-        
-        return token.string;
-    }
     
-    /**
-     * Parse some mediawiki markup to get its HTML equivalent.
-     * We pass in the optional pageTitle in case the markup uses special variables like {{PAGENAME}}
-     * 
-     * @param pageTitle Title of the page the markup came from
-     * @param markup Markup text we want to convert to HTML
-     * @return Deferred HTML converted from markup
-     */
-    function _parseMarkup2HTML(pageTitle, markup) {
-        var result = new $.Deferred();
-        var encodedMarkup = window.encodeURIComponent(markup);
-        var url = "http://docs.webplatform.org/w/api.php?action=parse&disablepp&prop=text&format=json&title=" +
-            pageTitle + "&text=" + encodedMarkup;
-        $.get(url, function (data) {
-            result.resolve(data.parse.text['*']);
-        });
-        
-        return result.promise();
-    }
-    
-    /**
-     * Query docs.webplatform.org for the documentation on a CSS property and return its summary.
-     *
-     * @param cssPropName Name of the CSS property
-     * @return Deferred {String} Summary description of the CSS property
-     */
-    function _getCSSPropSummary(cssPropName) {
-        var result = new $.Deferred();
-
-        var query = "css/properties/" + cssPropName;
-        var params = "%7C?Summary&format=json";
-        var url = "http://docs.webplatform.org/w/api.php?action=ask&query=%5B%5B" + query + "%5D%5D" + params;
-        $.get(url, function (data) {
-            var results = data.query.results;
-            if (results[query]) {
-                var summary = results[query].printouts.Summary[0];
-                _parseMarkup2HTML(query, summary).done(function (parsedSummary) {
-                    result.resolve(parsedSummary);
-                });
-            }
-        });
-        
-        return result.promise();
-    }
-    
-    /**
-     * Get the name and description for each possible value for a given CSS property
-     *
-     * @param cssPropname {String} Name of the CSS property
-     * @return Deferred Array of value name/description pairs
-     */
-    function _getCSSPropValuesAndDescriptions(cssPropName) {
-        var result = new $.Deferred();
-        
-        var query = "Value_for_property::css/properties/" + cssPropName;
-        var pageTitle = "css/properties/" + cssPropName;
-        var params = "%7C?Property_value%7C?Property_value_description&format=json";
-        var url = "http://docs.webplatform.org/w/api.php?action=ask&query=%5B%5B" + query +
-            "%5D%5D" + params;
-        $.get(url, function (data) {
-            var results = data.query.results;
-            var val;
-            var deferreds = [];
-            for (val in results) {
-                if (results.hasOwnProperty(val)) {
-                    var propValObj = results[val].printouts;
-                    var propVal = propValObj["Property value"];
-                    var propValDesc = propValObj["Property value description"];
-
-                    if (propVal.length && propValDesc.length) {
-                        deferreds.push(_parseMarkup2HTML(pageTitle, propVal[0]));
-                        deferreds.push(_parseMarkup2HTML(pageTitle, propValDesc[0]));
-                    }
-                }
-            }
-
-            /* Wait for all the prop value names & desciptions to arrive before proceeding */
-            $.when.apply(null, deferreds).then(function () {
-                var propVals = [];
-                var i = 0;
-                while (i < arguments.length) {
-                    propVals.push({
-                        propValName: arguments[i++],
-                        propValDesc: arguments[i++]
-                    });
-                }
-                result.resolve(propVals);
-            });
-
-        });
-                
-        return result.promise();
-    }
-    
-    /**
-     * Lookup a CSS property definition on webplatform.org and return its definition
-     * At this point, we get the Summary and list of possible property values and their descriptions.
-     * @param cssPropName CSS Property Name
-     * @return {Object} Object containing the summary and list of possible property values and their descriptions
-     */
-    function _getCSSPropDetails(cssPropName) {
-        var result = new $.Deferred();
-        
-        $.when(_getCSSPropSummary(cssPropName), _getCSSPropValuesAndDescriptions(cssPropName)).then(
-            function (summary, propVals) {
-                var navUrl = "http://docs.webplatform.org/wiki/css/properties/" + cssPropName;
-                var propDetails = "<div class='wpd-css'><h1>" + cssPropName + "</h1>" +
-                    "<div class='css-prop-summary'><h2>Summary</h2>" +
-                    "<p class='css-prop-summary'>" + summary + "</p>" +
-                    "<div class='css-prop-values'><h2>Values</h2>";
-                
-                var i;
-                for (i = 0; i < propVals.length; i++) {
-                    var propVal = propVals[i];
-                    propDetails += "<div class='css-prop-val'><dl><dt>" + propVal.propValName + "</dt>" +
-                        "<dd>" + propVal.propValDesc + "</dd>" +
-                        "</dl></div>";
-                }
-
-                propDetails += "<p class='more-info'><a href='" + navUrl + "'>More Info...</a></p></div></div>";
-                
-                /*
-                 * We don't want anyone navigating and changing the view within Brackets itself.
-                 */
-                var $propDetails = $(propDetails);
-                $.each($propDetails.find('a'), function (index, value) {
-                    var href = value.getAttribute('href');
-                    if (href.substr(0, 4) !== 'http') {
-                        href = 'http://docs.webplatform.org' + (href.charAt(0) !== '/' ? '/' : '') +
-                            href.replace(' ', '_');
-                    }
-                    value.setAttribute('data-href', href);
-                    value.setAttribute('href', '#');
-                });
-                
-                $propDetails.find('a').click(function (event) {
-                    event.stopPropagation();
-                    NativeApp.openURLInDefaultBrowser(this.getAttribute('data-href'));
-                });
-                result.resolve($propDetails);
-            }
-        );
-        
-        return result.promise();
-    }
+    var CSSPropsServerURL = "http://ec2-184-73-148-225.compute-1.amazonaws.com/css.json";
     
     function _addFontDeclaration(url) {
         var attributes = {
@@ -222,6 +56,93 @@ define(function (require, exports, module) {
             };
         var $link = $("<link/>").attr(attributes);
         $link.appendTo("head");
+    }
+    
+    function _getRemoteCSSPropsHash() {
+        var result = new $.Deferred();
+        
+        // TODO: Change when proxy server supports this
+        result.resolve("");
+        
+        return result.promise();
+    }
+    
+    function _getRemoteCSSPropDetails() {
+        $.get(CSSPropDocCache, function (data) {
+            CSSPropDocCache = data;
+        });
+    }
+
+    function _initCSSPropDocCache() {
+        var appSupportDir = brackets.app.getApplicationSupportDirectory();
+        NativeFileSystem.requestNativeFileSystem(appSupportDir, function (fs) {
+            var folder = "wpd_data";
+            fs.root.getDirectory(folder, {create: true}, function (dirEntry) {
+                dirEntry.getFile("cssPropsCache", {create: false}, function (fileEntry) {
+                    FileUtils.readAsText(fileEntry).done(function (text, modTime) {
+                        CSSPropDocCache = JSON.parse(text);
+                        
+                        _getRemoteCSSPropsHash().done(function (hash) {
+                            if (hash !== CSSPropDocCache.HASH.toString()) {
+                                _getRemoteCSSPropDetails();
+                            }
+                        });
+                    }).fail(function (error) {
+                        console.log("Problems occurred reading cssPropsCache from filesystem. Updating from server.");
+                        _getRemoteCSSPropDetails();
+                    });
+                }, function (error) {
+                    console.log("cssPropsCache not found.  Updating from server.");
+                    _getRemoteCSSPropDetails();
+                });
+            }, function (error) {
+                console.log("Problems occurred reading wpd_data folder.  Updating properties from server.");
+                _getRemoteCSSPropDetails();
+            });
+        }, function (error) {
+            console.log("Problems occurred accessing native filesystem.  Updating properties from server.");
+            _getRemoteCSSPropDetails();
+        });
+    }
+    
+    function _cssPropDetails2HTML(cssPropName, cssPropDetails) {
+        var summary = cssPropDetails.SUMMARY;
+        var values = cssPropDetails.VALUES;
+        
+        var html = "<div class='wpd-css'><h1>" + cssPropName + "</h1>" +
+            "<div class='css-prop-summary'><h2>Summary</h2>" + summary + "</div>" +
+            "<div class='css-prop-values'><h2>Values</h2><dl>";
+        
+        var i;
+        for (i = 0; i < values.length; i++) {
+            var value = values[i];
+            html += "<dt>" + value.TITLE + "</dt>" +
+                "<dd>" + value.DESCRIPTION + "</dd>";
+        }
+
+        html += "</dl></div><p class='more-info'><a href='" + cssPropDetails.URL + "'>More Info...</a></p></div>";
+        
+        var $html = $(html);
+        
+        /*
+         * We don't want anyone navigating and changing the view within Brackets itself.
+         */
+        $.each($html.find('a'), function (index, value) {
+            var href = value.getAttribute('href');
+            if (href.substr(0, 4) !== 'http') {
+                href = 'http://docs.webplatform.org' + (href.charAt(0) !== '/' ? '/' : '') +
+                    href.replace(' ', '_');
+            }
+            value.setAttribute('data-href', href);
+            value.setAttribute('href', '#');
+        });
+        
+        $html.find('a').click(function (event) {
+            event.stopPropagation();
+            NativeApp.openURLInDefaultBrowser(this.getAttribute('data-href'));
+        });
+        
+        return $html;
     }
     
     /**
@@ -248,11 +169,16 @@ define(function (require, exports, module) {
         var cssInfo = CSSUtils.getInfoAtPos(editor, editor.getSelection().start);
         if (cssInfo && cssInfo.name) {
             var cssPropName = cssInfo.name;
-            _getCSSPropDetails(cssPropName).done(function (cssPropDetails) {
-                var wpdViewer = new InlineWPDViewer(cssPropName, cssPropDetails);
-                wpdViewer.load(editor);
-                editor.addInlineWidget(editor.getCursorPos(), wpdViewer);
-            });
+            if (CSSPropDocCache && CSSPropDocCache.hasOwnProperty("PROPERTIES")) {
+                // TODO: Objects should be keyed off the name w/o the css/properties/ prefix
+                var cssPropDetails = CSSPropDocCache.PROPERTIES["css/properties/" + cssPropName];
+                if (cssPropDetails) {
+                    var cssPropDetailsHTML = _cssPropDetails2HTML(cssPropName, cssPropDetails);
+                    var wpdViewer = new InlineWPDViewer(cssPropName, cssPropDetailsHTML);
+                    wpdViewer.load(editor);
+                    editor.addInlineWidget(editor.getCursorPos(), wpdViewer);
+                }
+            }
         }
     }
     
@@ -276,4 +202,6 @@ define(function (require, exports, module) {
         editor_cmenu.addMenuDivider();
         editor_cmenu.addMenuItem(SHOW_CSS_DOCS_CMD);
     }
+    
+    _initCSSPropDocCache();
 });
